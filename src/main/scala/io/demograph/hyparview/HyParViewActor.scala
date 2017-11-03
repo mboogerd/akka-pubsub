@@ -17,6 +17,7 @@
 package io.demograph.hyparview
 
 import akka.actor.{ Actor, ActorRef, Props, Terminated }
+import akka.stream.scaladsl.SourceQueue
 import io.demograph.hyparview.HyParViewActor.{ InitiateShuffle, Inspect }
 import io.demograph.hyparview.Messages._
 
@@ -27,16 +28,29 @@ object HyParViewActor {
 
   private[hyparview] case object Inspect
 
-  def props(config: HyParViewConfig, contact: ActorRef): Props =
-    Props(new HyParViewActor(config, contact, PartialView.empty(config.maxActiveViewSize), PartialView.empty(config.maxPassiveViewSize)))
+  def props(config: HyParViewConfig, contact: ActorRef, queue: SourceQueue[ActorRef]): Props =
+    props(config, contact, queue, PartialView.empty(config.maxPassiveViewSize))
 
-  def props(config: HyParViewConfig, contact: ActorRef, activeView: PartialView[ActorRef], passiveView: PartialView[ActorRef]): Props =
-    Props(new HyParViewActor(config, contact, activeView, passiveView))
+  def props(config: HyParViewConfig, contact: ActorRef, queue: SourceQueue[ActorRef], passiveView: PartialView[ActorRef]): Props =
+    props(config, contact, queue, PartialView.empty(config.maxActiveViewSize) + contact, passiveView)
+
+  private[hyparview] def props(
+    config: HyParViewConfig,
+    contact: ActorRef,
+    queue: SourceQueue[ActorRef],
+    activeView: PartialView[ActorRef],
+    passiveView: PartialView[ActorRef]): Props =
+    Props(new HyParViewActor(config, contact, queue, activeView, passiveView))
 
   case object InitiateShuffle
 }
 
-class HyParViewActor(config: HyParViewConfig, contact: ActorRef, initActiveView: PartialView[ActorRef], initPassiveView: PartialView[ActorRef]) extends Actor {
+class HyParViewActor private (
+  config: HyParViewConfig,
+  contact: ActorRef,
+  queue: SourceQueue[ActorRef],
+  initActiveView: PartialView[ActorRef],
+  initPassiveView: PartialView[ActorRef]) extends Actor {
 
   import config._
   import context.dispatcher
@@ -63,6 +77,7 @@ class HyParViewActor(config: HyParViewConfig, contact: ActorRef, initActiveView:
   }
 
   def initiateShuffle(): Unit = {
+    // TODO: Consider using round-robin instead
     val shuffleTarget = activeView.randomElement
     val activePart = (activeView - shuffleTarget).sample(shuffleActive)
     val passivePart = passiveView.sample(shufflePassive)
@@ -73,6 +88,7 @@ class HyParViewActor(config: HyParViewConfig, contact: ActorRef, initActiveView:
   }
 
   def handleShuffle(exchangeSet: Set[ActorRef], ttl: Int, origin: ActorRef): Unit = {
+    publishDiscovery(exchangeSet + origin)
     val newTTL = ttl - 1
     if (newTTL == 0 || activeView.size <= 1) {
       // construct a response with candidates from our passive view
@@ -89,19 +105,20 @@ class HyParViewActor(config: HyParViewConfig, contact: ActorRef, initActiveView:
   }
 
   def handleShuffleReply(request: Shuffle, exchangeSet: Set[ActorRef]): Unit = {
+    publishDiscovery(exchangeSet)
     passiveView = passiveView.mergeRespectingCapacity(exchangeSet, prioritizedRemoval = request.exchangeSet)
     context.become(receive)
   }
 
   private def handleJoin(newNode: ActorRef): Unit = {
+    publishDiscovery(newNode)
     if (!activeView.contains(newNode) && activeView.isFull) dropRandomElementFromActiveView()
-
     activeView.foreach(_ ! ForwardJoin(newNode, activeRWL, self))
-
     promotePeer(newNode)
   }
 
   def handleForwardJoin(newNode: ActorRef, ttl: Int, forwarder: ActorRef): Unit = {
+    publishDiscovery(newNode)
     if (ttl <= 0 || activeView.isEmpty) {
       addNodeToActiveView(newNode)
     } else {
@@ -130,6 +147,8 @@ class HyParViewActor(config: HyParViewConfig, contact: ActorRef, initActiveView:
   }
 
   def handleNeighbourRequest(peer: ActorRef, prio: Boolean): Unit = {
+    publishDiscovery(peer)
+
     if (prio && activeView.isFull) dropRandomElementFromActiveView()
 
     if (activeView.isFull) {
@@ -178,7 +197,13 @@ class HyParViewActor(config: HyParViewConfig, contact: ActorRef, initActiveView:
     context.watch(peer)
   }
 
+  def publishDiscovery(actorRef: ActorRef): Unit = publishDiscovery(Set(actorRef))
+
+  def publishDiscovery(actorRefs: Set[ActorRef]): Unit = (actorRefs -- passiveView -- activeView).foreach(queue.offer)
+
   def initialize(): Unit = {
+    // The first ActorRef to be published should be the initial point of contact
+    queue.offer(contact)
     // Attempt to join using the contact node
     contact ! Join(self)
     // Watch everything already in the active view
