@@ -67,13 +67,13 @@ class PartialView[E](maxSize: Int, wraps: Set[E]) extends Set[E] with SetLike[E,
     def zeroIfNegative(x: Int): Int = if (x < 0) 0 else x
 
     // Make sure to include as much valuable information as possible, but not more than allowed
-    val validSample = (toMerge -- wraps).take(maxSize)
+    val newElements = (toMerge -- wraps).take(maxSize)
     // First remove prioritized elements
-    val prioElementsToRemove = prioritizedRemoval.take(zeroIfNegative(validSample.size - remainingCapacity))
+    val prioElementsToRemove = prioritizedRemoval.take(zeroIfNegative(newElements.size - remainingCapacity))
     // Then, if required, remove elements randomly
-    val removeRandomElements = zeroIfNegative(validSample.size - remainingCapacity - prioElementsToRemove.size)
+    val removeRandomElements = zeroIfNegative(newElements.size - remainingCapacity - prioElementsToRemove.size)
     val viewWithCapacity = (wraps -- prioElementsToRemove).drop(removeRandomElements)
-    PartialView(maxSize, viewWithCapacity ++ validSample)
+    PartialView(maxSize, viewWithCapacity ++ newElements)
   }
 
   def remainingCapacity: Int = maxSize - size

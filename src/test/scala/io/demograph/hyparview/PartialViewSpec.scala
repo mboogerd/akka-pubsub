@@ -16,11 +16,10 @@
 
 package io.demograph.hyparview
 
+import org.scalacheck.Arbitrary._
 import org.scalacheck.Gen
-import org.scalactic.anyvals.PosZInt
 import org.scalatest.prop.ScalaCheckDrivenPropertyChecks
 import org.scalatest.{ FlatSpecLike, Matchers }
-import org.scalacheck.Arbitrary._
 /**
  *
  */
@@ -121,5 +120,20 @@ class PartialViewSpec extends FlatSpecLike with Matchers with ScalaCheckDrivenPr
     merged should have size 3
     merged should contain noElementsOf Set(0, 1, 2)
     (Set(3, 4, 5, 6, 7) -- merged) should have size 2
+  }
+
+  it should "not lose information during shuffling (assuming a globally defined passive-view-max-size)" in {
+    forAll { (view1: Set[Int], view2: Set[Int]) ⇒
+      val maxSize = math.max(view1.size, view2.size)
+      val pView1 = PartialView(maxSize, view1)
+      val pView2 = PartialView(maxSize, view2)
+      val sample1 = pView1.sample(10)
+      val sample2 = (pView2 -- pView1).sample(sample1.size)
+
+      val merged1 = pView1.mergeRespectingCapacity(sample2, sample1)
+      val merged2 = pView2.mergeRespectingCapacity(sample1, sample2)
+
+      (merged1.toSeq.toSet ++ merged2.toSeq.toSet) shouldBe (view1 ++ view2)
+    }
   }
 }

@@ -98,7 +98,7 @@ class HyParViewActor(config: HyParViewConfig, contact: ActorRef, initActiveView:
 
     activeView.foreach(_ ! ForwardJoin(newNode, activeRWL, self))
 
-    activeView = activeView + newNode
+    promotePeer(newNode)
   }
 
   def handleForwardJoin(newNode: ActorRef, ttl: Int, forwarder: ActorRef): Unit = {
@@ -123,10 +123,9 @@ class HyParViewActor(config: HyParViewConfig, contact: ActorRef, initActiveView:
 
     if (passiveView.nonEmpty) {
       val candidate = passiveView.randomElement
-      context.watch(candidate)
       candidate ! Neighbor(self, prio = activeView.isEmpty)
+      promotePeer(candidate)
       passiveView -= candidate
-      activeView += candidate
     }
   }
 
@@ -137,7 +136,7 @@ class HyParViewActor(config: HyParViewConfig, contact: ActorRef, initActiveView:
       peer ! NeighborReply(self, accepted = false)
     } else {
       peer ! NeighborReply(self, accepted = true)
-      activeView += peer
+      promotePeer(peer)
       passiveView -= peer
     }
   }
@@ -152,7 +151,7 @@ class HyParViewActor(config: HyParViewConfig, contact: ActorRef, initActiveView:
   def addNodeToActiveView(newNode: ActorRef): Unit = {
     if (newNode != self && !activeView.contains(newNode)) {
       if (activeView.isFull) dropRandomElementFromActiveView()
-      activeView += newNode
+      promotePeer(newNode)
     }
   }
 
@@ -169,8 +168,14 @@ class HyParViewActor(config: HyParViewConfig, contact: ActorRef, initActiveView:
   def dropRandomElementFromActiveView(): Unit = {
     val node = activeView.randomElement
     node ! Disconnect(self)
+    context.unwatch(node)
     activeView -= node
     passiveView += node
+  }
+
+  def promotePeer(peer: ActorRef): Unit = {
+    activeView += peer
+    context.watch(peer)
   }
 
   def initialize(): Unit = {

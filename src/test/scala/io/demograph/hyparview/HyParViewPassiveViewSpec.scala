@@ -17,9 +17,9 @@
 package io.demograph.hyparview
 
 import akka.actor.ActorSystem
-import akka.testkit.{TestKit, TestProbe}
+import akka.testkit.{ TestKit, TestProbe }
 import io.demograph.hyparview.HyParViewActor.InitiateShuffle
-import io.demograph.hyparview.Messages.{Shuffle, ShuffleReply}
+import io.demograph.hyparview.Messages.{ Shuffle, ShuffleReply }
 import org.scalamock.scalatest.MockFactory
 
 import scala.concurrent.duration._
@@ -113,9 +113,8 @@ class HyParViewPassiveViewSpec extends TestKit(ActorSystem()) with HyParViewSpec
   it should "integrate the exchangeSet included in a ShuffleReply" in {
     val shuffledNode = TestProbe()
     val shuffleTarget = TestProbe()
-    val peer = hyparviewActor(
-      activeView = unboundedPartialView(shuffleTarget.ref)
-    )
+    val peer = hyparviewActor(activeView = unboundedPartialView(shuffleTarget.ref))
+
     peer ! InitiateShuffle
     shuffleTarget.expectMsg(Shuffle(Set.empty, makeConfig().shuffleRWL, peer))
     peer ! ShuffleReply(Set(shuffledNode.ref))
