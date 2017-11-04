@@ -18,8 +18,12 @@ package io.demograph.hyparview
 
 import akka.actor.ActorSystem
 import akka.testkit.{ TestKit, TestProbe }
+import eu.timepit.refined.api.Refined
 import io.demograph.hyparview.HyParViewActor.Inspect
 import io.demograph.hyparview.Messages.{ Disconnect, ForwardJoin, Join }
+import eu.timepit.refined.auto._
+import eu.timepit.refined.numeric.NonNegative
+
 /**
  *
  */
@@ -107,17 +111,21 @@ class HyParViewJoinSpec extends TestKit(ActorSystem()) with HyParViewSpec {
     val existingNode = TestProbe()
     val newNode1 = TestProbe()
     val newNode2 = TestProbe()
-    val peer = hyparviewActor(activeView = unboundedPartialView(existingNode.ref), passiveView = unboundedPartialView())
+    val passiveRWL: Int Refined NonNegative = 3
+    val peer = hyparviewActor(
+      activeView = unboundedPartialView(existingNode.ref),
+      passiveView = unboundedPartialView(),
+      config = makeConfig().copy(passiveRWL = passiveRWL))
 
     withClue("not include the node of a forwarded join in the passive view (in general)") {
-      peer ! ForwardJoin(newNode1.ref, makeConfig().passiveRWL + 1, relayNode)
-      existingNode.expectMsg(ForwardJoin(newNode1.ref, makeConfig().passiveRWL, peer))
+      peer ! ForwardJoin(newNode1.ref, 4, relayNode)
+      existingNode.expectMsg(ForwardJoin(newNode1.ref, passiveRWL, peer))
       passiveView(peer) shouldBe 'empty
     }
 
     withClue("include the node of a join-forward in the passive view once the random walk reaches the configured threshold") {
-      peer ! ForwardJoin(newNode2.ref, makeConfig().passiveRWL, relayNode)
-      existingNode.expectMsg(ForwardJoin(newNode2.ref, makeConfig().passiveRWL - 1, peer))
+      peer ! ForwardJoin(newNode2.ref, passiveRWL, relayNode)
+      existingNode.expectMsg(ForwardJoin(newNode2.ref, 2, peer))
       passiveView(peer) should contain only newNode2.ref
     }
 

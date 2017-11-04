@@ -18,8 +18,12 @@ package io.demograph.hyparview
 
 import akka.actor.{ Actor, ActorRef, Props, Terminated }
 import akka.stream.scaladsl.SourceQueue
+import eu.timepit.refined.api.Refined
 import io.demograph.hyparview.HyParViewActor.{ InitiateShuffle, Inspect }
 import io.demograph.hyparview.Messages._
+import eu.timepit.refined._
+import eu.timepit.refined.auto._
+import eu.timepit.refined.numeric.NonNegative
 
 /**
  *
@@ -29,10 +33,10 @@ object HyParViewActor {
   private[hyparview] case object Inspect
 
   def props(config: HyParViewConfig, contact: ActorRef, queue: SourceQueue[ActorRef]): Props =
-    props(config, contact, queue, PartialView.empty(config.maxPassiveViewSize))
+    props(config, contact, queue, PartialView.empty(config.maxPassiveViewSize.value))
 
   def props(config: HyParViewConfig, contact: ActorRef, queue: SourceQueue[ActorRef], passiveView: PartialView[ActorRef]): Props =
-    props(config, contact, queue, PartialView.empty(config.maxActiveViewSize) + contact, passiveView)
+    props(config, contact, queue, PartialView.empty(config.maxActiveViewSize.value) + contact, passiveView)
 
   private[hyparview] def props(
     config: HyParViewConfig,
@@ -79,18 +83,17 @@ class HyParViewActor private (
   def initiateShuffle(): Unit = {
     // TODO: Consider using round-robin instead
     val shuffleTarget = activeView.randomElement
-    val activePart = (activeView - shuffleTarget).sample(shuffleActive)
-    val passivePart = passiveView.sample(shufflePassive)
+    val activePart = (activeView - shuffleTarget).sample(shuffleActive.value)
+    val passivePart = passiveView.sample(shufflePassive.value)
     val shuffleRequest = Shuffle(activePart ++ passivePart, shuffleRWL, self)
     shuffleTarget ! shuffleRequest
 
     context.become(shuffling(shuffleRequest))
   }
 
-  def handleShuffle(exchangeSet: Set[ActorRef], ttl: Int, origin: ActorRef): Unit = {
+  def handleShuffle(exchangeSet: Set[ActorRef], ttl: Int Refined NonNegative, origin: ActorRef): Unit = {
     publishDiscovery(exchangeSet + origin)
-    val newTTL = ttl - 1
-    if (newTTL == 0 || activeView.size <= 1) {
+    if (ttl.value == 1 || activeView.size <= 1) {
       // construct a response with candidates from our passive view
       val sample = (passiveView -- exchangeSet - origin).sample(exchangeSet.size + 1)
       origin ! ShuffleReply(sample)
@@ -100,7 +103,9 @@ class HyParViewActor private (
     } else {
       // forward the request
       val shuffleTarget = (activeView - origin).randomElement
-      shuffleTarget ! Shuffle(exchangeSet, newTTL, origin)
+      refineV[NonNegative](ttl.value - 1).foreach { newTTL ⇒
+        shuffleTarget ! Shuffle(exchangeSet, newTTL, origin)
+      }
     }
   }
 
@@ -117,9 +122,9 @@ class HyParViewActor private (
     promotePeer(newNode)
   }
 
-  def handleForwardJoin(newNode: ActorRef, ttl: Int, forwarder: ActorRef): Unit = {
+  def handleForwardJoin(newNode: ActorRef, ttl: Int Refined NonNegative, forwarder: ActorRef): Unit = {
     publishDiscovery(newNode)
-    if (ttl <= 0 || activeView.isEmpty) {
+    if (ttl.value == 0 || activeView.isEmpty) {
       addNodeToActiveView(newNode)
     } else {
       if (ttl == passiveRWL) addNodeToPassiveView(newNode)
@@ -127,7 +132,9 @@ class HyParViewActor private (
       val candidates = activeView - forwarder
       if (candidates.nonEmpty) {
         val destination = candidates.randomElement
-        destination ! ForwardJoin(newNode, ttl - 1, self)
+        refineV[NonNegative](ttl.value - 1).foreach { newTTL ⇒
+          destination ! ForwardJoin(newNode, newTTL, self)
+        }
       }
     }
   }

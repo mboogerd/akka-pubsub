@@ -30,6 +30,8 @@ object DependenciesConf {
 
       // typelevel
       "com.github.pureconfig" %% "pureconfig" % "0.8.0",
+      "eu.timepit" %% "refined"            % "0.8.4",
+      "eu.timepit" %% "refined-pureconfig" % "0.8.4",
       "org.typelevel" %% "cats" % "0.9.0",
 
       // test

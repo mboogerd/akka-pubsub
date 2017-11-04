@@ -22,9 +22,11 @@ import akka.stream.{ ActorMaterializer, Materializer, OverflowStrategy }
 import akka.stream.scaladsl.{ Keep, Sink, Source, SourceQueue, SourceQueueWithComplete }
 import akka.testkit.{ TestKitBase, TestProbe }
 import akka.util.Timeout
+import eu.timepit.refined.api.Refined
+import eu.timepit.refined.numeric.NonNegative
 import io.demograph.hyparview.HyParViewActor.Inspect
 import org.scalatest.BeforeAndAfterAll
-
+import eu.timepit.refined.auto._
 import scala.concurrent.duration._
 
 /**
@@ -70,13 +72,13 @@ trait HyParViewSpec extends TestSpec with BeforeAndAfterAll {
   }
 
   def makeConfig(
-    maxActiveViewSize: Int = 4,
-    maxPassiveViewSize: Int = 8,
-    activeRWL: Int = 3,
-    passiveRWL: Int = 2,
-    shuffleRWL: Int = 1,
-    shuffleActive: Int = 2,
-    shufflePassive: Int = 2,
+    maxActiveViewSize: Int Refined NonNegative = 4,
+    maxPassiveViewSize: Int Refined NonNegative = 8,
+    activeRWL: Int Refined NonNegative = 3,
+    passiveRWL: Int Refined NonNegative = 2,
+    shuffleRWL: Int Refined NonNegative = 1,
+    shuffleActive: Int Refined NonNegative = 2,
+    shufflePassive: Int Refined NonNegative = 2,
     shuffleInterval: FiniteDuration = 1.hour): HyParViewConfig = {
 
     HyParViewConfig(maxActiveViewSize, maxPassiveViewSize, activeRWL, passiveRWL, shuffleRWL, shuffleActive, shufflePassive, shuffleInterval)

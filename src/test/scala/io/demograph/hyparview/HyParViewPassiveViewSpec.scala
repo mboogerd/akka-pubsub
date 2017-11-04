@@ -23,6 +23,8 @@ import io.demograph.hyparview.Messages.{ Shuffle, ShuffleReply }
 import org.scalamock.scalatest.MockFactory
 
 import scala.concurrent.duration._
+import eu.timepit.refined.auto._
+
 /**
  *
  */

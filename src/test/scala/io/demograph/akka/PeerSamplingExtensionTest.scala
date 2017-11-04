@@ -14,10 +14,27 @@
  * limitations under the License.
  */
 
-package io.demograph.akkapubsub
+package io.demograph.akka
 
-import akka.actor.Extension
+import akka.actor.{ Actor, ActorSystem, Props }
+import akka.testkit.TestKit
+import io.demograph.hyparview.TestSpec
 
-class PubSubExtensionImpl extends Extension {
+/**
+ *
+ */
+class PeerSamplingExtensionTest extends TestKit(ActorSystem()) with TestSpec {
+
+  behavior of "PeerSamplingExtension"
+
+  it should "start without crashing the ActorSystem" in {
+    system.actorOf(Props(new Actor {
+      override def receive: Receive = {
+        case _ ⇒
+      }
+    }), "bootstrap")
+    val peerSamplingExtension = PeerSamplingExtension(system)
+    peerSamplingExtension.peerSource.futureValue
+  }
 
 }

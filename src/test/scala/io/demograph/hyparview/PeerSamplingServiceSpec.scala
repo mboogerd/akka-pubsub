@@ -26,8 +26,8 @@ import io.demograph.hyparview.PeerSamplingService.Config
 import org.reactivestreams.Publisher
 
 import scala.collection.immutable
-import scala.concurrent.Future
-
+import scala.concurrent.{ Await, Future }
+import eu.timepit.refined.auto._
 /**
  *
  */
@@ -39,7 +39,7 @@ class PeerSamplingServiceSpec extends TestKit(ActorSystem()) with HyParViewSpec 
 
   it should "include the contact as the first produced ActorRef" in {
     val contact = TestProbe().ref
-    val peerPublisher = service(contact = contact).peerPublisher
+    val peerPublisher = service(contact).peerPublisher
     first(peerPublisher).futureValue shouldBe contact
   }
 
@@ -75,7 +75,7 @@ class PeerSamplingServiceSpec extends TestKit(ActorSystem()) with HyParViewSpec 
 
   it should "include actors discovered through Shuffle requests" in {
     val contact = TestProbe().ref
-    val pss = service(contact = contact)
+    val pss = service(contact)
     val newNode = TestProbe().ref
     val (s1, s2) = (TestProbe().ref, TestProbe().ref)
     val monitor = take(pss.peerPublisher, 3)
@@ -87,7 +87,7 @@ class PeerSamplingServiceSpec extends TestKit(ActorSystem()) with HyParViewSpec 
 
   it should "include actors discovered through ShuffleReply requests" in {
     val contact = TestProbe().ref
-    val pss = service(contact = contact)
+    val pss = service(contact)
     val (s1, s2) = (TestProbe().ref, TestProbe().ref)
     val monitor = take(pss.peerPublisher, 2)
 
@@ -111,7 +111,7 @@ class PeerSamplingServiceSpec extends TestKit(ActorSystem()) with HyParViewSpec 
   }
 
   it should "drop old elements if more are discovered than consumed" in {
-    val pss = service(Config(bufferSize = 1, makeConfig()))
+    val pss = service(setupConfig = _.copy(bufferSize = 1))
     val forgottenNodes = (1 to 10).map(_ ⇒ TestProbe().ref)
     val finalNode = TestProbe().ref
     val peerPublisher = pss.peerPublisher
@@ -147,10 +147,35 @@ class PeerSamplingServiceSpec extends TestKit(ActorSystem()) with HyParViewSpec 
     }
   }
 
+  it should "allow subscriptions to consume at different rates" in {
+    val pss = service(setupConfig = _.copy(bufferSize = 1))
+    val forgottenNodes = (1 to 10).map(_ ⇒ TestProbe().ref)
+    val finalNode = TestProbe().ref
+    val pp1 = pss.peerPublisher
+    val pp2 = pss.peerPublisher
+    val takeAll = take(pp1, 11)
+
+    (forgottenNodes :+ finalNode).foreach(node ⇒ pss.hyParViewActor ! Join(node))
+
+    withClue("The first consumer consumes all produced elements") {
+      takeAll.futureValue
+    }
+    withClue("The second consumer only starts consuming after the first one completes, seeing only the last value") {
+      takeNow(pp2)(1) shouldBe Seq(finalNode)
+    }
+  }
+
+  ignore should "shutdown gracefully" in {
+    // TODO: This command should not make subscribers fail (with AbruptTerminationException), they should complete gracefully!
+    service().stopService()
+  }
+
   /* Test Utility Methods */
 
-  def service(config: Config = Config(10, makeConfig()), contact: ActorRef = TestProbe().ref): PeerSamplingService = {
-    PeerSamplingService(config, contact)
+  def service(contact: ActorRef = TestProbe().ref, setupConfig: Config ⇒ Config = identity): PeerSamplingService = {
+    val peerSamplingService = PeerSamplingService(setupConfig(Config(10, contact.path, makeConfig())), contact)
+    system.registerOnTermination(peerSamplingService.stopService())
+    peerSamplingService
   }
 
   def takeNow(publisher: Publisher[ActorRef])(n: Int): Seq[ActorRef] = take(publisher, n).futureValue
@@ -160,5 +185,4 @@ class PeerSamplingServiceSpec extends TestKit(ActorSystem()) with HyParViewSpec 
 
   def first(publisher: Publisher[ActorRef]): Future[ActorRef] =
     Source.fromPublisher(publisher).runWith(Sink.head)
-
 }

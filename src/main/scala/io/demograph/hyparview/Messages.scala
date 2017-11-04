@@ -17,6 +17,8 @@
 package io.demograph.hyparview
 
 import akka.actor.ActorRef
+import eu.timepit.refined.api.Refined
+import eu.timepit.refined.numeric.NonNegative
 
 /**
  *
@@ -25,9 +27,9 @@ object Messages {
 
   case class Join(newNode: ActorRef)
 
-  case class ForwardJoin(newNode: ActorRef, timeToLive: Int, forwarder: ActorRef)
+  case class ForwardJoin(newNode: ActorRef, timeToLive: Int Refined NonNegative, forwarder: ActorRef)
 
-  case class Shuffle(exchangeSet: Set[ActorRef], timeToLive: Int, origin: ActorRef)
+  case class Shuffle(exchangeSet: Set[ActorRef], timeToLive: Int Refined NonNegative, origin: ActorRef)
 
   case class ShuffleReply(exchangeSet: Set[ActorRef])
 
