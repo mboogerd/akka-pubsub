@@ -16,107 +16,100 @@
 
 package io.demograph.hyparview
 
-import akka.actor.{ ActorRef, ActorSystem }
-import akka.stream.{ ActorMaterializer, ActorMaterializerSettings, Materializer }
+import akka.actor.ActorRef
 import akka.stream.scaladsl.{ Sink, Source }
-import akka.testkit.{ TestKit, TestProbe }
-import io.demograph.hyparview.HyParViewActor.InitiateShuffle
+import akka.stream.{ ActorMaterializer, ActorMaterializerSettings, Materializer }
+import akka.testkit.TestProbe
+import eu.timepit.refined.auto._
+import io.demograph.hyparview.HyParViewActor.{ InitiateJoin, InitiateShuffle }
 import io.demograph.hyparview.Messages._
 import io.demograph.hyparview.PeerSamplingService.Config
 import org.reactivestreams.Publisher
 
 import scala.collection.immutable
-import scala.concurrent.{ Await, Future }
-import eu.timepit.refined.auto._
+import scala.concurrent.Future
 /**
  *
  */
-class PeerSamplingServiceSpec extends TestKit(ActorSystem()) with HyParViewSpec {
+class PeerSamplingServiceSpec extends HyParViewBaseSpec {
 
   behavior of "PeerSamplingService"
 
   override implicit val mat: Materializer = ActorMaterializer(ActorMaterializerSettings(system).withInputBuffer(1, 1))
 
-  it should "include the contact as the first produced ActorRef" in {
+  it should "include the contact as the first produced ActorRef" in withService() { peerSampler =>
     val contact = TestProbe().ref
-    val peerPublisher = service(contact).peerPublisher
+    val peerPublisher = peerSampler.peerPublisher
+    peerSampler.hyParViewActor ! InitiateJoin(contact)
     first(peerPublisher).futureValue shouldBe contact
   }
 
-  it should "include actors discovered through Join requests" in {
-    val pss = service()
+  it should "include actors discovered through Join requests" in withService() { peerSampler =>
     val newNode = TestProbe().ref
 
-    val monitor = first(pss.peerPublisher)
-    pss.hyParViewActor ! Join(newNode)
+    val monitor = first(peerSampler.peerPublisher)
+    peerSampler.hyParViewActor ! Join(newNode)
 
     monitor.futureValue shouldBe newNode
   }
 
-  it should "include actors discovered through ForwardJoin requests" in {
-    val pss = service()
+  it should "include actors discovered through ForwardJoin requests" in withService() { peerSampler =>
     val newNode = TestProbe().ref
-    val monitor = first(pss.peerPublisher)
+    val monitor = first(peerSampler.peerPublisher)
 
-    pss.hyParViewActor ! ForwardJoin(newNode, Int.MaxValue, newNode)
+    peerSampler.hyParViewActor ! ForwardJoin(newNode, Int.MaxValue, newNode)
 
     monitor.futureValue shouldBe newNode
   }
 
-  it should "include actors discovered through Neighbour requests" in {
-    val pss = service()
+  it should "include actors discovered through Neighbour requests" in withService() { peerSampler =>
     val newNode = TestProbe().ref
-    val monitor = first(pss.peerPublisher)
+    val monitor = first(peerSampler.peerPublisher)
 
-    pss.hyParViewActor ! Neighbor(newNode, prio = false)
+    peerSampler.hyParViewActor ! Neighbor(newNode, prio = false)
 
     monitor.futureValue shouldBe newNode
   }
 
-  it should "include actors discovered through Shuffle requests" in {
-    val contact = TestProbe().ref
-    val pss = service(contact)
+  it should "include actors discovered through Shuffle requests" in withService() { peerSampler =>
     val newNode = TestProbe().ref
     val (s1, s2) = (TestProbe().ref, TestProbe().ref)
-    val monitor = take(pss.peerPublisher, 3)
+    val monitor = take(peerSampler.peerPublisher, 3)
 
-    pss.hyParViewActor ! Shuffle(Set(s1, s2), Int.MaxValue, newNode)
+    peerSampler.hyParViewActor ! Shuffle(Set(s1, s2), Int.MaxValue, newNode)
 
     monitor.futureValue should contain theSameElementsAs Set(newNode, s1, s2)
   }
 
-  it should "include actors discovered through ShuffleReply requests" in {
+  it should "include actors discovered through ShuffleReply requests" in withService() { peerSampler =>
     val contact = TestProbe().ref
-    val pss = service(contact)
     val (s1, s2) = (TestProbe().ref, TestProbe().ref)
-    val monitor = take(pss.peerPublisher, 2)
+    peerSampler.hyParViewActor ! Neighbor(contact, prio = true) // make sure the active view is filled
 
-    pss.hyParViewActor ! InitiateShuffle
-    pss.hyParViewActor ! ShuffleReply(Set(s1, s2))
+    peerSampler.hyParViewActor ! InitiateShuffle
+    val monitor = take(peerSampler.peerPublisher, 2)
+    peerSampler.hyParViewActor ! ShuffleReply(Set(s1, s2))
 
     monitor.futureValue should contain theSameElementsAs Set(s1, s2)
   }
 
-  it should "stream elements towards multiple subscribers" in {
-    val pss = service()
-
-    val peers1 = first(pss.peerPublisher)
-    val peers2 = first(pss.peerPublisher)
+  it should "stream elements towards multiple subscribers" in withService() { peerSampler =>
+    val peers1 = first(peerSampler.peerPublisher)
+    val peers2 = first(peerSampler.peerPublisher)
 
     val newNode = TestProbe().ref
-    pss.hyParViewActor ! Join(newNode)
+    peerSampler.hyParViewActor ! Join(newNode)
 
     peers1.futureValue shouldBe newNode
     peers2.futureValue shouldBe newNode
   }
 
-  it should "drop old elements if more are discovered than consumed" in {
-    val pss = service(setupConfig = _.copy(bufferSize = 1))
+  it should "drop old elements if more are discovered than consumed" in withService(setupConfig = _.copy(bufferSize = 1)) { peerSampler =>
     val forgottenNodes = (1 to 10).map(_ ⇒ TestProbe().ref)
     val finalNode = TestProbe().ref
-    val peerPublisher = pss.peerPublisher
+    val peerPublisher = peerSampler.peerPublisher
 
-    (forgottenNodes :+ finalNode).foreach(node ⇒ pss.hyParViewActor ! Join(node))
+    (forgottenNodes :+ finalNode).foreach(node ⇒ peerSampler.hyParViewActor ! Join(node))
 
     Thread.sleep(200)
 
@@ -125,47 +118,45 @@ class PeerSamplingServiceSpec extends TestKit(ActorSystem()) with HyParViewSpec 
     }
   }
 
-  it should "allow Stream subscription even after all previous Subscribers stopped" in {
-    val pss = service()
-
+  it should "allow Stream subscription even after all previous Subscribers stopped" in withService() { peerSampler =>
     withClue("The first subscriber subscribes and then stops") {
-      val firstSubscriber = pss.peerPublisher
+      val firstSubscriber = peerSampler.peerPublisher
 
       val newNode = TestProbe().ref
-      pss.hyParViewActor ! Join(newNode)
+      peerSampler.hyParViewActor ! Join(newNode)
 
       first(firstSubscriber).futureValue
     }
 
     withClue("The second subscriber then follows and should still be served") {
-      val secondSubscriber = first(pss.peerPublisher)
+      val secondSubscriber = first(peerSampler.peerPublisher)
 
       val newNode = TestProbe().ref
-      pss.hyParViewActor ! Join(newNode)
+      peerSampler.hyParViewActor ! Join(newNode)
 
       secondSubscriber.futureValue shouldBe newNode
     }
   }
 
-  it should "allow subscriptions to consume at different rates" in {
-    val pss = service(setupConfig = _.copy(bufferSize = 1))
+  it should "allow subscriptions to consume at different rates" in withService(setupConfig = _.copy(bufferSize = 2)) { peerSampler =>
+    // We use buffer-size 2, as using buffer-size 1 drops elements very fast (and therefore will fail the test)
     val forgottenNodes = (1 to 10).map(_ ⇒ TestProbe().ref)
-    val finalNode = TestProbe().ref
-    val pp1 = pss.peerPublisher
-    val pp2 = pss.peerPublisher
-    val takeAll = take(pp1, 11)
+    val (finalNode1, finalNode2) = (TestProbe().ref, TestProbe().ref)
+    val pp1 = peerSampler.peerPublisher
+    val pp2 = peerSampler.peerPublisher
+    val observeAll = take(pp1, 12)
 
-    (forgottenNodes :+ finalNode).foreach(node ⇒ pss.hyParViewActor ! Join(node))
+    (forgottenNodes :+ finalNode1 :+ finalNode2).foreach(node ⇒ peerSampler.hyParViewActor ! Join(node))
 
     withClue("The first consumer consumes all produced elements") {
-      takeAll.futureValue
+      observeAll.futureValue
     }
     withClue("The second consumer only starts consuming after the first one completes, seeing only the last value") {
-      takeNow(pp2)(1) shouldBe Seq(finalNode)
+      take(pp2, 2).futureValue shouldBe Seq(finalNode1, finalNode2)
     }
   }
 
-  ignore should "shutdown gracefully" in {
+  ignore should "shutdown gracefully" in withService() { peerSampler =>
     // TODO: This command should not make subscribers fail (with AbruptTerminationException), they should complete gracefully!
     service().stopService()
   }
@@ -173,9 +164,15 @@ class PeerSamplingServiceSpec extends TestKit(ActorSystem()) with HyParViewSpec 
   /* Test Utility Methods */
 
   def service(contact: ActorRef = TestProbe().ref, setupConfig: Config ⇒ Config = identity): PeerSamplingService = {
-    val peerSamplingService = PeerSamplingService(setupConfig(Config(10, contact.path, makeConfig())), contact)
+    val peerSamplingService = PeerSamplingService(setupConfig(Config(10, Some(contact.path), None, makeConfig())))
     system.registerOnTermination(peerSamplingService.stopService())
     peerSamplingService
+  }
+
+  def withService(contact: ActorRef = TestProbe().ref, setupConfig: Config ⇒ Config = identity)(test: PeerSamplingService ⇒ Any): Unit = {
+    val peerSamplingService = PeerSamplingService(setupConfig(Config(10, Some(contact.path), None, makeConfig())))
+    test(peerSamplingService)
+    peerSamplingService.stopService()
   }
 
   def takeNow(publisher: Publisher[ActorRef])(n: Int): Seq[ActorRef] = take(publisher, n).futureValue

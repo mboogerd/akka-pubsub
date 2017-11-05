@@ -16,18 +16,17 @@
 
 package io.demograph.hyparview
 
-import akka.actor.ActorSystem
-import akka.testkit.{ TestKit, TestProbe }
+import akka.testkit.TestProbe
 import eu.timepit.refined.api.Refined
-import io.demograph.hyparview.HyParViewActor.Inspect
-import io.demograph.hyparview.Messages.{ Disconnect, ForwardJoin, Join }
 import eu.timepit.refined.auto._
 import eu.timepit.refined.numeric.NonNegative
+import io.demograph.hyparview.HyParViewActor.{ InitiateJoin, Inspect }
+import io.demograph.hyparview.Messages.{ Disconnect, ForwardJoin, Join }
 
 /**
  *
  */
-class HyParViewJoinSpec extends TestKit(ActorSystem()) with HyParViewSpec {
+class HyParViewJoinSpec extends HyParViewBaseSpec {
 
   behavior of "Join"
 
@@ -39,7 +38,8 @@ class HyParViewJoinSpec extends TestKit(ActorSystem()) with HyParViewSpec {
 
   it should "be sent to the Contact node upon initialization" in {
     val probe = TestProbe()
-    val peer = hyparviewActor(contact = probe.ref)
+    val peer = hyparviewActor()
+    peer ! InitiateJoin(probe.ref)
     probe.expectMsg(Join(peer))
   }
 

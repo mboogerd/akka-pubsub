@@ -14,30 +14,25 @@
  * limitations under the License.
  */
 
-package io.demograph.akka
+package io.demograph.hyparview
 
-import akka.actor.{ Actor, Props }
-import io.demograph.hyparview.ActorTestSpec
-import io.demograph.hyparview.Messages.Join
+import akka.actor.ActorSystem
+import akka.stream.{ ActorMaterializer, Materializer }
+import akka.testkit.TestKit
+import akka.util.Timeout
+import org.scalatest.BeforeAndAfterAll
 
+import scala.concurrent.duration._
 /**
  *
  */
-class PeerSamplingExtensionTest extends ActorTestSpec {
+abstract class ActorTestSpec extends TestKit(ActorSystem()) with TestSpec with BeforeAndAfterAll {
 
-  behavior of "PeerSamplingExtension"
+  implicit val mat: Materializer = ActorMaterializer()
 
-  it should "start without crashing the ActorSystem" in {
-    var joinReceived = false
-    system.actorOf(Props(new Actor {
-      override def receive: Receive = {
-        case Join(newNode) ⇒ joinReceived = true
-      }
-    }), "bootstrap")
+  implicit val timeout: Timeout = Timeout(1.second)
 
-    PeerSamplingExtension(system)
+  val noMsgTimeout: FiniteDuration = 30.milliseconds
 
-    eventually(joinReceived shouldBe true)
-  }
-
+  override protected def afterAll(): Unit = system.terminate()
 }

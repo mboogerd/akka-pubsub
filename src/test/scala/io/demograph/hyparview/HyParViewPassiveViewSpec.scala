@@ -16,19 +16,17 @@
 
 package io.demograph.hyparview
 
-import akka.actor.ActorSystem
-import akka.testkit.{ TestKit, TestProbe }
+import akka.testkit.TestProbe
+import eu.timepit.refined.auto._
 import io.demograph.hyparview.HyParViewActor.InitiateShuffle
 import io.demograph.hyparview.Messages.{ Shuffle, ShuffleReply }
-import org.scalamock.scalatest.MockFactory
 
 import scala.concurrent.duration._
-import eu.timepit.refined.auto._
 
 /**
  *
  */
-class HyParViewPassiveViewSpec extends TestKit(ActorSystem()) with HyParViewSpec with MockFactory {
+class HyParViewPassiveViewSpec extends HyParViewBaseSpec {
 
   behavior of "Passive View Maintenance"
 
@@ -39,7 +37,7 @@ class HyParViewPassiveViewSpec extends TestKit(ActorSystem()) with HyParViewSpec
     val peer = hyparviewActor(config, activeView = unboundedPartialView(activeNode.ref))
 
     activeNode.expectMsg(Shuffle(Set.empty, config.shuffleRWL, peer))
-    activeNode.expectNoMessage(80.milliseconds)
+    activeNode.expectNoMessage(50.milliseconds)
     activeNode.expectMsg(Shuffle(Set.empty, config.shuffleRWL, peer))
   }
 

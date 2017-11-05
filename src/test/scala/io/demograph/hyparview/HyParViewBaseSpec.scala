@@ -18,28 +18,19 @@ package io.demograph.hyparview
 
 import akka.actor.ActorRef
 import akka.pattern.ask
-import akka.stream.{ ActorMaterializer, Materializer, OverflowStrategy }
+import akka.stream.OverflowStrategy
 import akka.stream.scaladsl.{ Keep, Sink, Source, SourceQueue, SourceQueueWithComplete }
-import akka.testkit.{ TestKitBase, TestProbe }
-import akka.util.Timeout
 import eu.timepit.refined.api.Refined
+import eu.timepit.refined.auto._
 import eu.timepit.refined.numeric.NonNegative
 import io.demograph.hyparview.HyParViewActor.Inspect
-import org.scalatest.BeforeAndAfterAll
-import eu.timepit.refined.auto._
+
 import scala.concurrent.duration._
 
 /**
  *
  */
-trait HyParViewSpec extends TestSpec with BeforeAndAfterAll {
-  this: TestKitBase ⇒
-
-  implicit val mat: Materializer = ActorMaterializer()
-  implicit val timeout: Timeout = Timeout(1.second)
-  val noMsgTimeout: FiniteDuration = 30.milliseconds
-
-  override protected def afterAll(): Unit = system.terminate()
+trait HyParViewBaseSpec extends ActorTestSpec {
 
   def sourceQueue(): SourceQueueWithComplete[ActorRef] = {
     val (queue, _) = Source.queue[ActorRef](1, OverflowStrategy.dropHead)
@@ -53,9 +44,8 @@ trait HyParViewSpec extends TestSpec with BeforeAndAfterAll {
     config: HyParViewConfig = makeConfig(),
     activeView: PartialView[ActorRef] = unboundedPartialView(),
     passiveView: PartialView[ActorRef] = unboundedPartialView(),
-    queue: SourceQueue[ActorRef] = sourceQueue(),
-    contact: ActorRef = TestProbe().ref): ActorRef = {
-    system.actorOf(HyParViewActor.props(config, contact, queue, activeView, passiveView))
+    queue: SourceQueue[ActorRef] = sourceQueue()): ActorRef = {
+    system.actorOf(HyParViewActor.props(config, queue, activeView, passiveView))
   }
 
   def filledPartialView(ars: ActorRef*): PartialView[ActorRef] = PartialView(ars.size, Set(ars: _*))

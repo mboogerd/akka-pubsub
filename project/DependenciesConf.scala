@@ -27,6 +27,7 @@ object DependenciesConf {
       // akka
       "com.typesafe.akka" %% "akka-remote" % akkaVersion, // (includes transitively all we need)
       "com.typesafe.akka" %% "akka-slf4j" % akkaVersion,
+      "com.typesafe.akka" %% "akka-cluster" % akkaVersion,
 
       // typelevel
       "com.github.pureconfig" %% "pureconfig" % "0.8.0",

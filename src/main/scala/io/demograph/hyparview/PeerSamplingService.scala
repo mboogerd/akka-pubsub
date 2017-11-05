@@ -20,7 +20,9 @@ import akka.actor.{ ActorPath, ActorRef, ActorSystem, PoisonPill }
 import akka.stream.scaladsl.{ Keep, Sink, Source }
 import akka.stream.{ Materializer, OverflowStrategy }
 import eu.timepit.refined.api.Refined
+import eu.timepit.refined.collection.NonEmpty
 import eu.timepit.refined.numeric.NonNegative
+import io.demograph.hyparview.HyParViewActor.InitiateJoin
 import io.demograph.hyparview.PeerSamplingService.Config
 import io.demograph.peersampling.{ PeerSamplingService ⇒ PSS }
 import org.log4s._
@@ -28,11 +30,11 @@ import org.reactivestreams.{ Publisher, Subscriber, Subscription }
 /**
  *
  */
-class PeerSamplingService(config: Config, contact: ActorRef)(implicit system: ActorSystem, mat: Materializer) extends PSS[ActorRef] {
+class PeerSamplingService(config: Config)(implicit system: ActorSystem, mat: Materializer) extends PSS[ActorRef] {
 
   private[this] val log = getLogger
 
-  private val (queue, actorPublisher) = Source.queue[ActorRef](config.bufferSize.value, OverflowStrategy.dropHead)
+  private val (queue, actorPublisher) = Source.queue[ActorRef](20, OverflowStrategy.dropHead)
     .toMat(Sink.asPublisher(fanout = true))(Keep.both)
     .run()
 
@@ -42,13 +44,19 @@ class PeerSamplingService(config: Config, contact: ActorRef)(implicit system: Ac
       .runWith(Sink.asPublisher(false))
   }
 
+  def bootstrapService(bootstrapNode: ActorRef): Unit = {
+    hyParViewActor ! InitiateJoin(bootstrapNode)
+  }
+
   def stopService(): Unit = {
     hyParViewActor ! PoisonPill
     queue.complete()
   }
 
-  private[hyparview] val hyParViewActor: ActorRef =
-    system.actorOf(HyParViewActor.props(config.hyparview, contact, queue))
+  private[hyparview] val hyParViewActor: ActorRef = {
+    val actorName = config.name.getOrElse("hyparview")
+    system.actorOf(HyParViewActor.props(config.hyparview, queue), actorName)
+  }
 
   // This is a bit of a hack. Make sure there is always a live Subscriber, so that `peerPublisher` doesn't cancel when
   // all Subscribers cancel (such that new Subscribers can still subscribe)
@@ -62,8 +70,12 @@ class PeerSamplingService(config: Config, contact: ActorRef)(implicit system: Ac
 
 object PeerSamplingService {
 
-  case class Config(bufferSize: Int Refined NonNegative, contact: ActorPath, hyparview: HyParViewConfig)
+  case class Config(
+    bufferSize: Int Refined NonNegative,
+    contact: Option[ActorPath],
+    name: Option[String],
+    hyparview: HyParViewConfig)
 
-  def apply(config: Config, contact: ActorRef)(implicit system: ActorSystem, mat: Materializer): PeerSamplingService =
-    new PeerSamplingService(config, contact)
+  def apply(config: Config)(implicit system: ActorSystem, mat: Materializer): PeerSamplingService =
+    new PeerSamplingService(config)
 }

@@ -16,10 +16,10 @@
 
 package io.demograph.hyparview
 
-import akka.actor.{ Actor, ActorRef, Props, Terminated }
+import akka.actor.{ Actor, ActorLogging, ActorRef, Props, Terminated }
 import akka.stream.scaladsl.SourceQueue
 import eu.timepit.refined.api.Refined
-import io.demograph.hyparview.HyParViewActor.{ InitiateShuffle, Inspect }
+import io.demograph.hyparview.HyParViewActor.{ InitiateJoin, InitiateShuffle, Inspect }
 import io.demograph.hyparview.Messages._
 import eu.timepit.refined._
 import eu.timepit.refined.auto._
@@ -32,29 +32,28 @@ object HyParViewActor {
 
   private[hyparview] case object Inspect
 
-  def props(config: HyParViewConfig, contact: ActorRef, queue: SourceQueue[ActorRef]): Props =
-    props(config, contact, queue, PartialView.empty(config.maxPassiveViewSize.value))
+  def props(config: HyParViewConfig, queue: SourceQueue[ActorRef]): Props =
+    props(config, queue, PartialView.empty(config.maxPassiveViewSize.value))
 
-  def props(config: HyParViewConfig, contact: ActorRef, queue: SourceQueue[ActorRef], passiveView: PartialView[ActorRef]): Props =
-    props(config, contact, queue, PartialView.empty(config.maxActiveViewSize.value) + contact, passiveView)
+  def props(config: HyParViewConfig, queue: SourceQueue[ActorRef], passiveView: PartialView[ActorRef]): Props =
+    props(config, queue, PartialView.empty(config.maxActiveViewSize.value), passiveView)
 
   private[hyparview] def props(
     config: HyParViewConfig,
-    contact: ActorRef,
     queue: SourceQueue[ActorRef],
     activeView: PartialView[ActorRef],
     passiveView: PartialView[ActorRef]): Props =
-    Props(new HyParViewActor(config, contact, queue, activeView, passiveView))
+    Props(new HyParViewActor(config, queue, activeView, passiveView))
 
   case object InitiateShuffle
+  case class InitiateJoin(bootstrapNode: ActorRef)
 }
 
 class HyParViewActor private (
   config: HyParViewConfig,
-  contact: ActorRef,
   queue: SourceQueue[ActorRef],
   initActiveView: PartialView[ActorRef],
-  initPassiveView: PartialView[ActorRef]) extends Actor {
+  initPassiveView: PartialView[ActorRef]) extends Actor with ActorLogging {
 
   import config._
   import context.dispatcher
@@ -64,7 +63,7 @@ class HyParViewActor private (
 
   initialize()
 
-  override def receive: Receive = {
+  override val receive: Receive = {
     case InitiateShuffle ⇒ initiateShuffle()
     case Shuffle(exchangeSet, ttl, origin) ⇒ handleShuffle(exchangeSet, ttl, origin)
     case Neighbor(peer, prio) ⇒ handleNeighbourRequest(peer, prio)
@@ -73,6 +72,7 @@ class HyParViewActor private (
     case ForwardJoin(newNode, ttl, forwarder) ⇒ handleForwardJoin(newNode, ttl, forwarder)
     case Disconnect(peer) ⇒ handleDisconnect(peer)
     case Terminated(peer) ⇒ handleDisconnect(peer)
+    case InitiateJoin(peer) ⇒ initiateJoin(peer)
     case Inspect ⇒ sender ! (activeView, passiveView)
   }
 
@@ -81,14 +81,18 @@ class HyParViewActor private (
   }
 
   def initiateShuffle(): Unit = {
-    // TODO: Consider using round-robin instead
-    val shuffleTarget = activeView.randomElement
-    val activePart = (activeView - shuffleTarget).sample(shuffleActive.value)
-    val passivePart = passiveView.sample(shufflePassive.value)
-    val shuffleRequest = Shuffle(activePart ++ passivePart, shuffleRWL, self)
-    shuffleTarget ! shuffleRequest
+    if (activeView.nonEmpty) {
+      // TODO: Consider using round-robin instead
+      val shuffleTarget = activeView.randomElement
+      val activePart = (activeView - shuffleTarget).sample(shuffleActive.value)
+      val passivePart = passiveView.sample(shufflePassive.value)
+      val shuffleRequest = Shuffle(activePart ++ passivePart, shuffleRWL, self)
+      shuffleTarget ! shuffleRequest
 
-    context.become(shuffling(shuffleRequest))
+      context.become(shuffling(shuffleRequest))
+    } else {
+      promoteRandomPassiveNode()
+    }
   }
 
   def handleShuffle(exchangeSet: Set[ActorRef], ttl: Int Refined NonNegative, origin: ActorRef): Unit = {
@@ -174,6 +178,11 @@ class HyParViewActor private (
     }
   }
 
+  def initiateJoin(node: ActorRef): Unit = {
+    queue.offer(node)
+    node ! Join(self)
+  }
+
   def addNodeToActiveView(newNode: ActorRef): Unit = {
     if (newNode != self && !activeView.contains(newNode)) {
       if (activeView.isFull) dropRandomElementFromActiveView()
@@ -204,15 +213,19 @@ class HyParViewActor private (
     context.watch(peer)
   }
 
+  def promoteRandomPassiveNode(): Unit = {
+    if (passiveView.nonEmpty) {
+      val candidate = passiveView.randomElement
+      addNodeToActiveView(candidate)
+      passiveView -= candidate
+    }
+  }
+
   def publishDiscovery(actorRef: ActorRef): Unit = publishDiscovery(Set(actorRef))
 
   def publishDiscovery(actorRefs: Set[ActorRef]): Unit = (actorRefs -- passiveView -- activeView).foreach(queue.offer)
 
   def initialize(): Unit = {
-    // The first ActorRef to be published should be the initial point of contact
-    queue.offer(contact)
-    // Attempt to join using the contact node
-    contact ! Join(self)
     // Watch everything already in the active view
     activeView.foreach(context.watch)
     // Schedule a periodic shuffling process

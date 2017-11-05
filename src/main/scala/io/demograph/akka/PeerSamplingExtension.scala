@@ -21,7 +21,7 @@ import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import io.demograph.hyparview.PeerSamplingService.Config
 import pureconfig._
-
+import org.log4s._
 import scala.concurrent.duration._
 import scala.util.Try
 import eu.timepit.refined.pureconfig._
@@ -29,7 +29,7 @@ import eu.timepit.refined.pureconfig._
  *
  */
 object PeerSamplingExtension extends ExtensionId[PeerSamplingExtensionImpl] with ExtensionIdProvider {
-
+  private[this] val log = getLogger
   private implicit val timeout: Timeout = Timeout(5.seconds)
 
   private implicit val actorPathReader: ConfigReader[ActorPath] =
@@ -39,8 +39,15 @@ object PeerSamplingExtension extends ExtensionId[PeerSamplingExtensionImpl] with
 
   override def createExtension(system: ExtendedActorSystem): PeerSamplingExtensionImpl = {
     val config = loadConfigOrThrow[Config](system.settings.config, "peer-sampling")
-    val bootstrapNode = system.actorSelection(config.contact)
     val mat = ActorMaterializer()(system)
-    new PeerSamplingExtensionImpl(config, bootstrapNode)(system, mat)
+    val impl = new PeerSamplingExtensionImpl(config)(system, mat)
+
+    config.contact match {
+      case Some(bootstrap) ⇒ impl.bootstrapService(bootstrap)
+      case None ⇒
+        log.info("Peer Sampling Extension started but no bootstrap node is configured. Join should be performed manually")
+    }
+
+    impl
   }
 }

@@ -1,3 +1,6 @@
+import com.typesafe.sbt.SbtMultiJvm.multiJvmSettings
+import com.typesafe.sbt.SbtMultiJvm.MultiJvmKeys.MultiJvm
+
 lazy val root = project.in(file("."))
   .settings(
     inThisBuild(List(
@@ -8,6 +11,8 @@ lazy val root = project.in(file("."))
     name := "akka-pubsub")
   .settings(GenericConf.settings())
   .settings(DependenciesConf.common)
+  .settings(multiJvmSettings: _*)
+  .configs(MultiJvm)
   .settings(LicenseConf.settings)
   .enablePlugins(AutomateHeaderPlugin)
   .settings(TutConf.settings)

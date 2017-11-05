@@ -16,14 +16,14 @@
 
 package io.demograph.hyparview
 
-import akka.actor.{ ActorSystem, PoisonPill }
-import akka.testkit.{ TestKit, TestProbe }
+import akka.actor.PoisonPill
+import akka.testkit.TestProbe
 import io.demograph.hyparview.Messages.{ Disconnect, Neighbor, NeighborReply }
 
 /**
  *
  */
-class HyParViewActiveViewSpec extends TestKit(ActorSystem()) with HyParViewSpec {
+class HyParViewActiveViewSpec extends HyParViewBaseSpec {
 
   behavior of "Active View Management"
 
@@ -127,11 +127,4 @@ class HyParViewActiveViewSpec extends TestKit(ActorSystem()) with HyParViewSpec 
     activeView(peer) shouldBe Set(activeNode.ref, candidateNode.ref)
     passiveView(peer) shouldBe Set(rejectedNeighbour.ref)
   }
-
-  // TODO: multi-jvm
-  it should "deathwatch newly joined/neighbour nodes" in {
-    // join
-    // neighbour
-  }
-
 }
