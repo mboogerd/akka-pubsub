@@ -90,9 +90,9 @@ class HyParViewActor private (
       shuffleTarget ! shuffleRequest
 
       context.become(shuffling(shuffleRequest))
-    } else {
-      promoteRandomPassiveNode()
     }
+
+    if (!activeView.isFull) promoteRandomPassiveNode()
   }
 
   def handleShuffle(exchangeSet: Set[ActorRef], ttl: Int Refined NonNegative, origin: ActorRef): Unit = {
@@ -228,7 +228,7 @@ class HyParViewActor private (
   def initialize(): Unit = {
     // Watch everything already in the active view
     activeView.foreach(context.watch)
-    // Schedule a periodic shuffling process
+    // Schedule a periodic shuffling ( / promotion) process
     context.system.scheduler.schedule(shuffleInterval, shuffleInterval, self, InitiateShuffle)
   }
 }
