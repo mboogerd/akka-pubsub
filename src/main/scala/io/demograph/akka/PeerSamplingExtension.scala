@@ -22,6 +22,8 @@ import akka.util.Timeout
 import io.demograph.hyparview.PeerSamplingService.Config
 import pureconfig._
 import org.log4s._
+import pureconfig._
+
 import scala.concurrent.duration._
 import scala.util.Try
 import eu.timepit.refined.pureconfig._

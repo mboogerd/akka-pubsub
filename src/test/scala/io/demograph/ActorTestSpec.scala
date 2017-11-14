@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-package io.demograph.hyparview
+package io.demograph
 
-import akka.actor.ActorSystem
-import akka.stream.{ ActorMaterializer, Materializer }
-import akka.testkit.TestKit
-import akka.util.Timeout
+import _root_.akka.actor.ActorSystem
+import _root_.akka.stream.{ ActorMaterializer, Materializer }
+import _root_.akka.testkit.TestKit
+import _root_.akka.util.Timeout
 import org.scalatest.BeforeAndAfterAll
 
 import scala.concurrent.duration._

@@ -23,6 +23,7 @@ import akka.stream.scaladsl.{ Keep, Sink, Source, SourceQueue, SourceQueueWithCo
 import eu.timepit.refined.api.Refined
 import eu.timepit.refined.auto._
 import eu.timepit.refined.numeric.NonNegative
+import io.demograph.ActorTestSpec
 import io.demograph.hyparview.HyParViewActor.Inspect
 
 import scala.concurrent.duration._

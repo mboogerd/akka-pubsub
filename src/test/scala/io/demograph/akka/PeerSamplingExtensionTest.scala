@@ -17,7 +17,7 @@
 package io.demograph.akka
 
 import akka.actor.{ Actor, Props }
-import io.demograph.hyparview.ActorTestSpec
+import io.demograph.ActorTestSpec
 import io.demograph.hyparview.Messages.Join
 
 /**

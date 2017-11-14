@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.demograph.hyparview
+package io.demograph
 
 import org.scalatest.concurrent.{ Eventually, ScalaFutures }
 import org.scalatest.{ FlatSpecLike, Matchers }
@@ -22,6 +22,4 @@ import org.scalatest.{ FlatSpecLike, Matchers }
 /**
  *
  */
-trait TestSpec extends FlatSpecLike with Matchers with ScalaFutures with Eventually {
-
-}
+trait TestSpec extends FlatSpecLike with Matchers with ScalaFutures with Eventually

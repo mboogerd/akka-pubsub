@@ -15,8 +15,8 @@ import org.reactivestreams.Publisher
 import org.scalatest.concurrent.{IntegrationPatience, ScalaFutures}
 
 import scala.collection.immutable
-import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
 
 /**
   *
@@ -44,7 +44,7 @@ class HyParViewSpec extends MultiNodeSpec(HyParViewTopology) with BaseMultiNodeS
         val service = peerSampler(system)
         val bootstrapNode = Await.result(system.actorSelection(bootstrapPath).resolveOne(), 5.seconds)
         service.bootstrapService(bootstrapNode)
-        println(take(service.peerPublisher, 2).futureValue)
+        println(take(service.peerPublisher, 3).futureValue)
         enterBarrier("terminating")
       }
       runOn(node2) {
@@ -52,7 +52,7 @@ class HyParViewSpec extends MultiNodeSpec(HyParViewTopology) with BaseMultiNodeS
         val service = peerSampler(system)
         val bootstrapNode = Await.result(system.actorSelection(bootstrapPath).resolveOne(), 5.seconds)
         service.bootstrapService(bootstrapNode)
-        println(take(service.peerPublisher, 2).futureValue)
+        println(take(service.peerPublisher, 3).futureValue)
         enterBarrier("terminating")
       }
     }

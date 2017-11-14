@@ -18,12 +18,11 @@ package io.demograph.hyparview
 
 import akka.actor.{ Actor, ActorLogging, ActorRef, Props, Terminated }
 import akka.stream.scaladsl.SourceQueue
+import eu.timepit.refined._
 import eu.timepit.refined.api.Refined
+import eu.timepit.refined.numeric.NonNegative
 import io.demograph.hyparview.HyParViewActor.{ InitiateJoin, InitiateShuffle, Inspect }
 import io.demograph.hyparview.Messages._
-import eu.timepit.refined._
-import eu.timepit.refined.auto._
-import eu.timepit.refined.numeric.NonNegative
 
 /**
  *
@@ -45,8 +44,8 @@ object HyParViewActor {
     passiveView: PartialView[ActorRef]): Props =
     Props(new HyParViewActor(config, queue, activeView, passiveView))
 
-  case object InitiateShuffle
-  case class InitiateJoin(bootstrapNode: ActorRef)
+  private[hyparview] case object InitiateShuffle
+  private[hyparview] case class InitiateJoin(bootstrapNode: ActorRef)
 }
 
 class HyParViewActor private (

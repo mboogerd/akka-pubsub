@@ -20,7 +20,6 @@ import akka.actor.{ ActorPath, ActorRef, ActorSystem, PoisonPill }
 import akka.stream.scaladsl.{ Keep, Sink, Source }
 import akka.stream.{ Materializer, OverflowStrategy }
 import eu.timepit.refined.api.Refined
-import eu.timepit.refined.collection.NonEmpty
 import eu.timepit.refined.numeric.NonNegative
 import io.demograph.hyparview.HyParViewActor.InitiateJoin
 import io.demograph.hyparview.PeerSamplingService.Config
