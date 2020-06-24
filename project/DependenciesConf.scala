@@ -41,7 +41,10 @@ object DependenciesConf {
       "org.scalamock" %% "scalamock-scalatest-support" % "3.6.0" % Test,
       "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
       "com.typesafe.akka" %% "akka-stream-testkit" % akkaVersion % Test,
-      "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaVersion % Test
+      "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaVersion % Test,
+
+
+      "io.demograph" %% "monotonic-mem" % "0.1.3"
     )
   }
 }

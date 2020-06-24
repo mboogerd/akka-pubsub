@@ -22,9 +22,9 @@ import scala.collection.SetLike
 import scala.util.Random
 
 /**
- * Quick and dirty implementation of a set with some helper methods (at least it can be unit tested without having to
- * do message passing and the like)
- */
+  * Quick and dirty implementation of a set with some helper methods (at least it can be unit tested without having to
+  * do message passing and the like)
+  */
 class PartialView[E](maxSize: Int, wraps: Set[E]) extends Set[E] with SetLike[E, PartialView[E]] {
 
   assert(maxSize >= 0, s"maxSize ($maxSize) must be a non-negative value")

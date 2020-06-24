@@ -31,9 +31,9 @@ import scala.concurrent.Future
 /**
  *
  */
-class PeerSamplingServiceSpec extends HyParViewBaseSpec {
+class PeerSamplingStreamServiceSpec extends HyParViewBaseSpec {
 
-  behavior of "PeerSamplingService"
+  behavior of "PeerSamplingStreamService"
 
   override implicit val mat: Materializer = ActorMaterializer(ActorMaterializerSettings(system).withInputBuffer(1, 1))
 

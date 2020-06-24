@@ -128,6 +128,7 @@ class HyParViewActor private (
   def handleForwardJoin(newNode: ActorRef, ttl: Int Refined NonNegative, forwarder: ActorRef): Unit = {
     publishDiscovery(newNode)
     if (ttl.value == 0 || activeView.isEmpty) {
+      // TODO: Here we should also signal `newNode` that we are its Neighbour / request Neighbourship?
       addNodeToActiveView(newNode)
     } else {
       if (ttl == passiveRWL) addNodeToPassiveView(newNode)

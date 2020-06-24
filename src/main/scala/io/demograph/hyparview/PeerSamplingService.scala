@@ -23,7 +23,7 @@ import eu.timepit.refined.api.Refined
 import eu.timepit.refined.numeric.NonNegative
 import io.demograph.hyparview.HyParViewActor.InitiateJoin
 import io.demograph.hyparview.PeerSamplingService.Config
-import io.demograph.peersampling.{ PeerSamplingService ⇒ PSS }
+import io.demograph.peersampling.{ PeerSamplingStreamService ⇒ PSS }
 import org.log4s._
 import org.reactivestreams.{ Publisher, Subscriber, Subscription }
 /**

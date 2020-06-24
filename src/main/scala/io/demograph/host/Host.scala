@@ -14,13 +14,11 @@
  * limitations under the License.
  */
 
-package io.demograph.peersampling
+package io.demograph.host
 
-import org.reactivestreams.Publisher
+import akka.actor.Address
 
 /**
  *
  */
-trait PeerSamplingService[T] {
-  def peerPublisher: Publisher[T]
-}
+case class Host(address: Address, routes: Seq[Host])
